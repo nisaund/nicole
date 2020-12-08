@@ -1,0 +1,326 @@
+SELECT DISTINCT
+a.HASHEDUNIQUETVID, 
+a.TITLE,
+b.AVG_RUN_TIME,
+b.RELEASE_YEAR,
+a.VIZIO_SHOW_TYPE AS VIZIO_SHOW_TYPE,
+sum(a.MINUTES) as MINUTES_WATCHED,
+sum(case when upper(a.LIVE) = 'T'then datediff(minute, a.CONTENTRECOGNITIONSTARTTIMESTAMP, a.CONTENTRECOGNITIONENDTIMESTAMP) else 0 end) as LIVE_MINS,
+sum(case when upper(a.LIVE) = 'F'then datediff(minute, a.CONTENTRECOGNITIONSTARTTIMESTAMP, a.CONTENTRECOGNITIONENDTIMESTAMP) else 0 end) as DVR_MINS,
+sum(case when a.inputcategory = 'OTT' then datediff(minute, a.CONTENTRECOGNITIONSTARTTIMESTAMP, a.CONTENTRECOGNITIONENDTIMESTAMP) else 0 end) as OTT_MINS,
+COUNT(DISTINCT a.INPUTDEVICE) AS NUMER_OF_PLATFORMS,
+COUNT(DISTINCT a.CONTENTTMSID) AS COUNT_OF_VIEWED_EPISODES,
+MAX(a.CONTENTRECOGNITIONSTARTTIMESTAMP) AS LAST_VIEWED_DATE,
+MAX(a.RECENCY) AS RECENCY,
+round(Avg(a.rest_days),0) AVG_TIME_BETWEEN_EVENTS,
+case when avg_run_time != 0 and count_of_viewed_episodes != 0 then round((minutes_watched/(avg_run_time*count_of_viewed_episodes))*100,2) else null end as percent_complete_1,
+case when percent_complete_1 > 100 then 100 else percent_complete_1 end as percent_complete,
+case when (max(a.recency) + avg_time_between_events) != 0 then round((ifnull(count_of_viewed_episodes, 1) * percent_complete) / (max(recency) + avg_time_between_events), 2) else null end as engagement_score,
+round((ifnull(COUNT_OF_VIEWED_EPISODES,1) * PERCENT_COMPLETE) / (max(a.RECENCY) + AVG_TIME_BETWEEN_EVENTS),2) as ENGAGMENT_SCORE,
+percent_rank() over (partition by TITLE order by Engagement_Score) as ENGAGEMENT_SCORE_RANK,
+percent_rank() over (partition by TITLE order by MINUTES_WATCHED) as FAN_RANK
+
+----------------
+SELECT DISTINCT
+a.HASHEDUNIQUETVID, 
+a.ZIPCODE,	
+a.DMA,
+a.CONTENTTMSID,	
+a.CONTENTTITLE,
+UPPER(replace(replace(replace(replace(a.CONTENTTITLE,',',''),'-', ''),':',''), '.','')) AS TITLE,
+a.SCHEDULEDCONTENTSTARTTIME,
+a.STATIONCALLSIGN,
+a.ID,
+a.CONTENTRECOGNITIONSTARTTIMESTAMP,
+a.CONTENTRECOGNITIONENDTIMESTAMP,
+a.NETWORK,
+b.NETWORK_TYPE, 
+ --Syndication Indicator and Network Type
+case 
+when b.NETWORK_TYPE = 'Cable' and a.Network != d.VIZIO_NETWORK_NAME  then 'Cable Syndication'
+when b.NETWORK_TYPE = 'Cable' and d.VIZIO_NETWORK_NAME IS NULL then 'Cable Syndication'
+when b.NETWORK_TYPE = 'Broadcast' and  a.Network != d.VIZIO_NETWORK_NAME  then 'Broadcast Syndication'
+when b.NETWORK_TYPE = 'Broadcast' and  d.VIZIO_NETWORK_NAME is NULL  then 'Broadcast Syndication'
+when b.NETWORK_TYPE IN ('Cable', 'Premium', 'Broadcast') and a.Network = d.VIZIO_NETWORK_NAME then 'Original'
+ELSE 'Other'
+end as NETWORK_DESC,
+ --Daypart
+case when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) = 3 and c.TIMEZONE = 'EST' then 'late_fringe' 
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) = 4 and c.TIMEZONE = 'EST' then 'late_fringe' 
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) = 5 and c.TIMEZONE = 'EST' then 'post_late_fringe'
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) between 6 and 9 and c.TIMEZONE = 'EST' then 'over_night'
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) between 10 and 13 and c.TIMEZONE = 'EST' then 'early_morning'
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) between 14 and 20 and c.TIMEZONE = 'EST' then 'Daytime'
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) between 21 and 22 and c.TIMEZONE = 'EST' then 'early_fringe'
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) = 23 and c.TIMEZONE = 'EST' then 'prime_access'
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) between 0 and 2 and c.TIMEZONE = 'EST' then 'prime_time'
+
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) = 4 and c.TIMEZONE = 'CST' then 'late_fringe' 
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) = 5 and c.TIMEZONE = 'CST' then 'late_fringe' 
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) = 6 and c.TIMEZONE = 'CST' then 'post_late_fringe'
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) between 7 and 10 and c.TIMEZONE = 'CST' then 'over_night'
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) between 11 and 14 and c.TIMEZONE = 'CST' then 'early_morning'
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) between 15 and 21 and c.TIMEZONE = 'CST' then 'Daytime'
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) between 22 and 23 and c.TIMEZONE = 'CST' then 'early_fringe'
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) = 0 and c.TIMEZONE = 'CST' then 'prime_access'
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) between 1 and 3 and c.TIMEZONE = 'CST' then 'prime_time'
+
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) = 5 and c.TIMEZONE = 'MST' then 'late_fringe' 
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) = 6 and c.TIMEZONE = 'MST' then 'late_fringe' 
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) = 7 and c.TIMEZONE = 'MST' then 'post_late_fringe'
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) between 8 and 11 and c.TIMEZONE = 'MST' then 'over_night'
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) between 12 and 15 and c.TIMEZONE = 'MST' then 'early_morning'
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) between 16 and 22 and c.TIMEZONE = 'MST' then 'Daytime'
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) = 23 or 0 and c.TIMEZONE = 'MST' then 'early_fringe'
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) = 1 and c.TIMEZONE = 'MST' then 'prime_access'
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) between 2 and 4 and c.TIMEZONE = 'MST' then 'prime_time'
+
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) = 6 and c.TIMEZONE = 'PST' then 'late_fringe' 
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) = 7 and c.TIMEZONE = 'PST' then 'post_late_fringe'
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) between 9 and 12 and c.TIMEZONE = 'PST' then 'over_night'
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) between 13 and 16 and c.TIMEZONE = 'PST' then 'early_morning'
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) between 17 and 23  and c.TIMEZONE = 'PST' then 'Daytime'
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) between 0 and 1 and c.TIMEZONE = 'PST' then 'early_fringe'
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) = 2 and c.TIMEZONE = 'PST' then 'prime_access'
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) between 3 and 5 and c.TIMEZONE = 'PST' then 'prime_time'
+
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) = 7 and c.TIMEZONE = 'YST' then 'late_fringe' 
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) = 8 and c.TIMEZONE = 'YST' then 'late_fringe' 
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) = 9 and c.TIMEZONE = 'YST' then 'post_late_fringe'
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) between 10 and 13 and c.TIMEZONE = 'YST' then 'over_night'
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) between 14 and 17 and c.TIMEZONE = 'YST' then 'early_morning'
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) = 18 or 19 or 20 or 21 or 22 or 23 or 0 and c.TIMEZONE = 'YST' then 'Daytime'
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) between 1 and 2 and c.TIMEZONE = 'YST' then 'early_fringe'
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) = 3 and c.TIMEZONE = 'YST' then 'prime_access'
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) between 4 and 6 and c.TIMEZONE = 'YST' then 'prime_time'
+
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) = 9 and c.TIMEZONE = 'HST' then 'late_fringe' 
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) = 10 and c.TIMEZONE = 'HST' then 'late_fringe' 
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) = 11 and c.TIMEZONE = 'HST' then 'post_late_fringe'
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) between 12 and 15 and c.TIMEZONE = 'HST' then 'over_night'
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) between 16 and 19 and c.TIMEZONE = 'HST' then 'early_morning'
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) = 20 or 21 or 22 or 23 or 0 or 1 or 2 and c.TIMEZONE = 'HST' then 'Daytime'
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) between 3 and 4 and c.TIMEZONE = 'HST' then 'early_fringe'
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) = 5 and c.TIMEZONE = 'HST' then 'prime_access'
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) between 6 and 8 and c.TIMEZONE = 'HST' then 'prime_time'
+
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) = 3 and c.TIMEZONE = '' then 'late_fringe' 
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) = 4 and c.TIMEZONE = '' then 'late_fringe' 
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) = 5 and c.TIMEZONE = '' then 'post_late_fringe'
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) between 6 and 9 and c.TIMEZONE = '' then 'over_night'
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) between 10 and 13 and c.TIMEZONE = '' then 'early_morning'
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) between 14 and 20 and c.TIMEZONE = '' then 'Daytime'
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) between 21 and 22 and c.TIMEZONE = '' then 'early_fringe'
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) = 23 and c.TIMEZONE = '' then 'prime_access'
+when hour(a.CONTENTRECOGNITIONSTARTTIMESTAMP) between 0 and 2 and c.TIMEZONE = '' then 'prime_time'
+end as Daypart,
+a.LIVE,
+a.INPUTCATEGORY,
+a.INPUTDEVICE,	
+a.APPSERVICE,
+case when substring(a.CONTENTTMSID,1,2)  = 'EP' then 'SE' when substring(a.CONTENTTMSID,1,2)  = 'SH' then 'SE' when substring(a.CONTENTTMSID,1,2)  = 'MV' then 'MO' else 'OT' end as Vizio_Show_Type, 
+datediff(minute, a.CONTENTRECOGNITIONSTARTTIMESTAMP, a.CONTENTRECOGNITIONENDTIMESTAMP) as MINUTES,
+round( ifnull(DATEDIFF(hours,a.CONTENTRECOGNITIONSTARTTIMESTAMP, LAG(a.CONTENTRECOGNITIONSTARTTIMESTAMP, 1) over (partition by a.HASHEDUNIQUETVID, a.CONTENTTITLE order by a.CONTENTRECOGNITIONSTARTTIMESTAMP desc)),0)/(24),2) as REST_DAYS,
+round( ifnull(DATEDIFF(hours,MAX(a.CONTENTRECOGNITIONSTARTTIMESTAMP) over (partition by a.HASHEDUNIQUETVID, a.CONTENTTITLE),CURRENT_DATE()),0)/24,2) AS RECENCY
+FROM "VIZIO"."CUSTOM_AGGREGATES"."VIZIO_VIEWERSHIP" a
+
+----------------------
+
+--STEP 1 SELCT DMAS AND HH IDS FROM MASTER VIZIO TABLE
+create or replace table "VIZIO"."TEST"."DMA_TEST2" as
+SELECT DISTINCT HASHEDUNIQUETVID, DMA, sum(datediff(minute, CONTENTRECOGNITIONSTARTTIMESTAMP, CONTENTRECOGNITIONENDTIMESTAMP)) as mins FROM "VIZIO"."CUSTOM_AGGREGATES"."VIZIO_VIEWERSHIP"
+GROUP BY 1, 2
+
+ 
+--STEP 2 PARTITION TO PICK DMA BASED ON VIEWING MINS
+ 
+create or replace table "VIZIO"."TEST"."DMA_PARTITION" as
+select * from
+ (
+ select *, row_number() over (partition by hasheduniquetvid order by mins desc) as rwnm from "VIZIO"."TEST"."DMA_TEST2" 
+WHERE DMA IS NOT NULL
+ )
+order by rwnm 
+     
+--STEP 3 Create Master Table with #1 DMA for Each DMA (Based on Viewing Mins)
+create or replace table "VIZIO"."METADATA"."VIZIO_HH_DMA_MASTER" as
+SELECT * FROM "VIZIO"."TEST"."DMA_PARTITION" 
+WHERE RWNM = 1
+
+--STEP 4 CREATE MASTER DMA TABLE
+create or replace table "VIZIO"."CUSTOM_AGGREGATES"."HOUSEHOLD_DETAILS" as
+(
+select 
+  Distinct
+  a.HASHEDUNIQUETVID, 
+  sum(case when substring(a.CONTENTTMSID,1,2) in ('EP','SH') then datediff(minute, a.CONTENTRECOGNITIONSTARTTIMESTAMP, a.CONTENTRECOGNITIONENDTIMESTAMP) else 0 end) as TV_Show_Minutes,
+  sum(case when substring(a.CONTENTTMSID,1,2)  = 'MV'  then datediff(minute, a.CONTENTRECOGNITIONSTARTTIMESTAMP, a.CONTENTRECOGNITIONENDTIMESTAMP)  else 0 end) as Movie_Minutes,
+    sum(case when substring(a.CONTENTTMSID,1,2) not in ('EP','SH','MV')  then datediff(minute, a.CONTENTRECOGNITIONSTARTTIMESTAMP, a.CONTENTRECOGNITIONENDTIMESTAMP)  else 0 end) as Other_Content_Minutes,
+  Min(to_date (a.CONTENTRECOGNITIONSTARTTIMESTAMP)) as First_Active_Date,
+  Max(to_date (a.CONTENTRECOGNITIONSTARTTIMESTAMP)) as Last_Active_Date,
+ b.DMA AS MAIN_DMA
+ from "VIZIO"."CUSTOM_AGGREGATES"."VIZIO_VIEWERSHIP" a
+  LEFT JOIN "VIZIO"."METADATA"."VIZIO_HH_DMA_MASTER" b
+  ON a.HASHEDUNIQUETVID = b.HASHEDUNIQUETVID 
+    group by 1,7
+);
+
+------------------------------
+
+---- TIVO
+
+-- 1. create table of user counts of commonly watching titles
+
+create or replace table  "VIZIO"."MARKET_BASKET"."FAN_BASE_TABLE" as
+(select distinct TITLE, VIZIO_SHOW_TYPE, HASHEDUNIQUETVID
+            FROM "VIZIO"."CUSTOM_AGGREGATES"."HOUSEHOLD_PROGRAM"
+            where VIZIO_SHOW_TYPE in ('SE','MO') and ENGAGEMENT_SCORE_NTILE> 8
+);
+
+create or replace table "VIZIO"."MARKET_BASKET"."USER_MARKET_BASKET_1"  as (
+    SELECT TITLE_NAME_1,
+           TITLE_NAME_2,
+           SHOW_TYPE_TITLE_1,
+           SHOW_TYPE_TITLE_2,
+            COUNT(HASHEDUNIQUETVID) as USER_COUNT
+    FROM (
+        SELECT b.VIZIO_SHOW_TYPE as SHOW_TYPE_TITLE_2,
+            a.VIZIO_SHOW_TYPE as SHOW_TYPE_TITLE_1,
+            a.HASHEDUNIQUETVID,
+            a.TITLE as TITLE_NAME_1 ,
+            b.TITLE as TITLE_NAME_2
+        from (
+            select * from  "VIZIO"."MARKET_BASKET"."FAN_BASE_TABLE"
+            ) a
+        left join (
+            select * from  "VIZIO"."MARKET_BASKET"."FAN_BASE_TABLE"
+          ) b on a.HASHEDUNIQUETVID=b.HASHEDUNIQUETVID and a.VIZIO_SHOW_TYPE <> b.VIZIO_SHOW_TYPE
+        ) Temp
+    GROUP BY 1,2,3,4
+    having TITLE_NAME_2 is not null
+);
+
+
+
+-- 2. create table of MB metrics
+
+create or replace table "VIZIO"."MARKET_BASKET"."USER_MARKET_BASKET" as (
+select PROGRAM_NAME_1 as TARGET_TITLE,
+    PROGRAM_NAME_2 as AFFINITY_TITLE,
+    SHOW_TYPE_TITLE_1 as SHOW_TYPE_TARGET_TITLE,
+    SHOW_TYPE_TITLE_2 as SHOW_TYPE_AFINITY_TITLE,
+    USER_COUNT as VIEWERS,
+    USER_COUNT/population as SUPPORT,
+    USER_COUNT/PROGRAM_2_HH as CONFIDENCE,
+    (CONFIDENCE/(PROGRAM_1_HH*100/POPULATION))*100 as LIFT,
+    POPULATION,
+    PROGRAM_2_HH as AUDIENCE_SIZE_AFFINITY_TITLE,
+    PROGRAM_1_HH as AUDIENCE_SIZE_TARGET_TITLE,
+    avg(VIEWERS) over (partition by TARGET_TITLE) as AVG_VIEWER_BY_TARGET,
+    AVG_VIEWER_BY_TARGET/POPULATION as MEAN_SUPPORT
+from
+    (select a.*,
+            b.HH as PROGRAM_2_HH,
+            c.HH PROGRAM_1_HH
+     from (select TITLE_NAME_1 as PROGRAM_NAME_1,
+                TITLE_NAME_2 as PROGRAM_NAME_2,
+                SHOW_TYPE_TITLE_1,
+                SHOW_TYPE_TITLE_2,
+                USER_COUNT,
+                (select count(distinct(HASHEDUNIQUETVID)) from "VIZIO"."MARKET_BASKET"."FAN_BASE_TABLE" ) as POPULATION
+            from "VIZIO"."MARKET_BASKET"."USER_MARKET_BASKET_1"
+          ) a
+     left join (
+           select TITLE, VIZIO_SHOW_TYPE, count(HASHEDUNIQUETVID) as HH
+           from "VIZIO"."MARKET_BASKET"."FAN_BASE_TABLE"
+           group by 1,2
+         ) b on a.PROGRAM_NAME_2 = b.TITLE and a.SHOW_TYPE_TITLE_2 = b.VIZIO_SHOW_TYPE
+     left join (
+           select TITLE, VIZIO_SHOW_TYPE,  count(HASHEDUNIQUETVID) as HH
+           from "VIZIO"."MARKET_BASKET"."FAN_BASE_TABLE"
+           group by 1,2) c on a.PROGRAM_NAME_1 = c.TITLE and a.SHOW_TYPE_TITLE_1 =c.VIZIO_SHOW_TYPE
+
+));
+
+---------------------
+select DISTINCT TIVO_PROGRAM_NAME, 
+TIVO_SHOW_TYPE,
+TIVO_PROGRAM_ID,
+TIVO_SERIES_ID,
+VIZIO_PROGRAM_NAME,
+VIZIO_SHOW_TYPE,
+GRACENOTEID
+from "VIZIO"."TEST"."Vizio_Tivo_Matching_Conf"
+  where CONFIDENCE_LEVEL = 100
+  and tivo_program_id = 1026739911
+  order by CONFIDENCE_LEVEL desc, vizio_program_start asc, gracenoteid
+  
+ 
+  --STEP 2 
+  --(partition to pick the first match using earliest airing date)
+  create or replace table "VIZIO"."METADATA"."VIZIO_MATCHING_MASTER_TABLE"
+  as
+  select * from
+  (
+  select TIVO_PROGRAM_NAME, 
+TIVO_SHOW_TYPE,
+TIVO_PROGRAM_ID,
+TIVO_SERIES_ID,
+VIZIO_PROGRAM_NAME,
+VIZIO_SHOW_TYPE,
+GRACENOTEID, row_number() over (partition by tivo_program_name, tivo_program_id order by VIZIO_PROGRAM_START asc) as rwnm from "VIZIO"."METADATA"."VIZIO_TIVO_MATCHING_BASE"
+  where CONFIDENCE_LEVEL = 100
+    ) 
+    where rwnm = 1
+     order by rwnm
+  ------------------------------------------------------------------------------------------------------------   
+create or replace table "VIZIO"."METADATA"."VIZIO_ROVI_ORIGINAL_NETWORK_BASE"
+  as
+  SELECT DISTINCT PROGRAM_ID, NETWORK_NM  FROM TIVO.TIVO_RAWFILE.ROVI_SERIES_SEASON_NETWORK 
+  
+-----------------------------------
+ create or replace table "VIZIO"."METADATA"."VIZIO_MATCHING_MASTER_W_ORIGINAL_NETWORK"
+  as
+SELECT *, b.NETWORK_NM AS ORIGINAL_NETWORK FROM "VIZIO"."METADATA"."VIZIO_MATCHING_MASTER_TABLE" a
+LEFT JOIN "VIZIO"."METADATA"."VIZIO_ROVI_ORIGINAL_NETWORK_BASE" b
+ON a.TIVO_PROGRAM_ID =  b.PROGRAM_ID
+
+
+SELECT DISTINCT INPUTDEVICE FROM "VIZIO"."CUSTOM_AGGREGATES"."VIZIO_VIEWERSHIP"
+------------------------------------
+  --STEP 4
+  create or replace table "VIZIO"."TEST"."Network_Match"
+  as
+  select distinct TIVO_NETWORK, VIZIO_NETWORK from "VIZIO"."TEST"."Vizio_Tivo_Matching_Conf_Test"
+  where tivo_network is not null and vizio_network is not null
+  and confidence_level = 100
+  
+  ---------------------------
+  create or replace table "VIZIO"."CUSTOM_AGGREGATES"."HOUSEHOLD_PROGRAM"
+as
+(SELECT DISTINCT
+a.HASHEDUNIQUETVID, 
+a.TITLE,
+b.AVG_RUN_TIME,
+b.RELEASE_YEAR,
+a.VIZIO_SHOW_TYPE AS VIZIO_SHOW_TYPE,
+sum(a.MINUTES) as MINUTES_WATCHED,
+sum(case when upper(a.LIVE) = 'T'then datediff(minute, a.CONTENTRECOGNITIONSTARTTIMESTAMP, a.CONTENTRECOGNITIONENDTIMESTAMP) else 0 end) as LIVE_MINS,
+sum(case when upper(a.LIVE) = 'F'then datediff(minute, a.CONTENTRECOGNITIONSTARTTIMESTAMP, a.CONTENTRECOGNITIONENDTIMESTAMP) else 0 end) as DVR_MINS,
+sum(case when a.inputcategory = 'OTT' then datediff(minute, a.CONTENTRECOGNITIONSTARTTIMESTAMP, a.CONTENTRECOGNITIONENDTIMESTAMP) else 0 end) as OTT_MINS,
+COUNT(DISTINCT a.INPUTDEVICE) AS NUMER_OF_PLATFORMS,
+COUNT(DISTINCT a.CONTENTTMSID) AS COUNT_OF_VIEWED_EPISODES,
+MAX(a.CONTENTRECOGNITIONSTARTTIMESTAMP) AS LAST_VIEWED_DATE,
+MAX(a.RECENCY) AS RECENCY,
+round(Avg(a.rest_days),0) AVG_TIME_BETWEEN_EVENTS,
+case when avg_run_time != 0 and count_of_viewed_episodes != 0 then round((minutes_watched/(avg_run_time*count_of_viewed_episodes))*100,2) else null end as percent_complete_1,
+case when percent_complete_1 > 100 then 100 else percent_complete_1 end as percent_complete,
+case when (max(a.recency) + avg_time_between_events) != 0 then round((ifnull(count_of_viewed_episodes, 1) * percent_complete) / (max(recency) + avg_time_between_events), 2) else null end as engagement_score,
+round((ifnull(COUNT_OF_VIEWED_EPISODES,1) * PERCENT_COMPLETE) / (max(a.RECENCY) + AVG_TIME_BETWEEN_EVENTS),2) as ENGAGMENT_SCORE,
+percent_rank() over (partition by TITLE order by Engagement_Score) as ENGAGEMENT_SCORE_RANK,
+ntile(10) over (partition by a.TITLE order by Engagement_Score) as ENGAGEMENT_SCORE_NTILE,
+percent_rank() over (partition by TITLE order by MINUTES_WATCHED) as FAN_RANK
+FROM "VIZIO"."CUSTOM_AGGREGATES"."VIEWING_TABLE_RECENCY_RESTDAYS" a
+LEFT JOIN "VIZIO"."METADATA"."METADATA_TEST2" b
+ON a.TITLE = b.CONTENTNAME AND a.VIZIO_SHOW_TYPE = b.SHOW_TYPE
+GROUP BY 1,2,3,4,5)
